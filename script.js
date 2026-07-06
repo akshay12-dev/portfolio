@@ -53,6 +53,30 @@ typeEffect();
 
 
 /* =========================================
+   MOBILE MENU TOGGLE
+========================================= */
+
+const menuBtn = document.getElementById("menuBtn");
+const navLinksEl = document.getElementById("navLinks");
+
+menuBtn.addEventListener("click", () => {
+
+    navLinksEl.classList.toggle("show-menu");
+
+});
+
+navLinksEl.querySelectorAll("a").forEach(link => {
+
+    link.addEventListener("click", () => {
+
+        navLinksEl.classList.remove("show-menu");
+
+    });
+
+});
+
+
+/* =========================================
    DARK MODE
 ========================================= */
 
