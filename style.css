@@ -424,6 +424,12 @@ nav{
     flex-shrink:0;
 }
 
+.social-icons svg{
+    width:20px;
+    height:20px;
+    fill:#ffffff;
+}
+
 .social-icons a:hover{
     transform:translateY(-8px);
 }
