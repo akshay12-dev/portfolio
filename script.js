@@ -183,15 +183,13 @@ window.addEventListener("scroll", ()=>{
    SCROLL REVEAL
 ========================================= */
 
-const revealItems = document.querySelectorAll(
-".section,.project-card,.skill-card,.timeline-item"
-);
-
 function revealOnScroll(){
 
     const trigger = window.innerHeight * 0.85;
 
-    revealItems.forEach(item=>{
+    document.querySelectorAll(
+    ".section,.project-card,.skill-card,.timeline-item"
+    ).forEach(item=>{
 
         const top = item.getBoundingClientRect().top;
 
@@ -214,9 +212,9 @@ revealOnScroll();
    BUTTON ANIMATION
 ========================================= */
 
-const buttons = document.querySelectorAll(".btn");
+function bindButtonAnimations(){
 
-buttons.forEach(btn=>{
+document.querySelectorAll(".btn").forEach(btn=>{
 
     btn.addEventListener("mouseenter",()=>{
 
@@ -231,6 +229,10 @@ buttons.forEach(btn=>{
     });
 
 });
+
+}
+
+bindButtonAnimations();
 
 
 /* =========================================
@@ -261,44 +263,263 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor=>{
 
 console.log("Welcome to Akshay Chaubey's Portfolio 🚀");
 
-const filterButtons=document.querySelectorAll(".filter-btn");
-const projectCards=document.querySelectorAll(".project-card");
+/* =========================================
+   GITHUB PROJECTS (auto-fetched)
+========================================= */
 
-filterButtons.forEach(button=>{
+const GITHUB_USER = "akshay12-dev";
+const projectsGrid = document.getElementById("projectsGrid");
+const filterButtonsContainer = document.getElementById("filterButtons");
 
-button.addEventListener("click",()=>{
+function escapeHTML(value){
 
-document.querySelector(".filter-btn.active").classList.remove("active");
+    return String(value).replace(/[&<>"']/g, char=>({
 
-button.classList.add("active");
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
 
-const filter=button.dataset.filter;
-
-projectCards.forEach(card=>{
-
-if(filter==="all"){
-
-card.style.display="block";
+    })[char]);
 
 }
 
-else if(card.classList.contains(filter)){
+function projectCardHTML(repo){
 
-card.style.display="block";
+    const language = repo.language || "Other";
+    const description = repo.description
+        ? escapeHTML(repo.description)
+        : "No description provided for this repository.";
+    const stars = repo.stargazers_count > 0
+        ? `<span>★ ${repo.stargazers_count}</span>` : "";
+    const homepage = repo.homepage && repo.homepage.trim()
+        ? `<a href="${escapeHTML(repo.homepage.trim())}" target="_blank" rel="noopener noreferrer" class="btn btn-outline">Live Demo</a>`
+        : "";
+
+    return `
+    <div class="project-card" data-language="${escapeHTML(language)}">
+        <h3>
+            <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer">
+                ${escapeHTML(repo.name)}
+            </a>
+        </h3>
+        <p>${description}</p>
+        <div class="tech">
+            <span>${escapeHTML(language)}</span>
+            ${stars}
+        </div>
+        <div class="project-links">
+            <a href="${repo.html_url}" target="_blank" rel="noopener noreferrer" class="btn">GitHub</a>
+            ${homepage}
+        </div>
+    </div>`;
 
 }
 
-else{
+function applyFilter(filter){
 
-card.style.display="none";
+    document.querySelectorAll(".project-card").forEach(card=>{
+
+        const show = filter === "all" || card.dataset.language === filter;
+
+        card.style.display = show ? "block" : "none";
+
+    });
 
 }
 
-});
+function buildFilterButtons(repos){
 
-});
+    const languages = [...new Set(
+        repos.map(repo => repo.language).filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b));
 
-});
+    languages.forEach(language => {
+
+        const button = document.createElement("button");
+
+        button.className = "filter-btn";
+        button.dataset.filter = language;
+        button.textContent = language;
+
+        filterButtonsContainer.appendChild(button);
+
+    });
+
+    filterButtonsContainer.querySelectorAll(".filter-btn").forEach(button=>{
+
+        button.addEventListener("click",()=>{
+
+            const active = filterButtonsContainer.querySelector(".filter-btn.active");
+
+            if(active) active.classList.remove("active");
+
+            button.classList.add("active");
+
+            applyFilter(button.dataset.filter);
+
+        });
+
+    });
+
+}
+
+const LANG_COLORS = {
+
+    Python:"#3572A5",
+    JavaScript:"#f1e05a",
+    TypeScript:"#3178c6",
+    HTML:"#e34c26",
+    CSS:"#563d7c",
+    Java:"#b07219",
+    Kotlin:"#A97BFF",
+    "Jupyter Notebook":"#DA5B0B",
+    C:"#555555",
+    "C++":"#f34b7d",
+    "C#":"#178600",
+    PHP:"#4F5D95",
+    Ruby:"#701516",
+    Go:"#00ADD8",
+    Rust:"#dea584",
+    Shell:"#89e051"
+
+};
+
+function renderLanguageStats(container, totals){
+
+    const entries = Object.entries(totals)
+        .filter(([, value]) => value > 0)
+        .sort((a, b) => b[1] - a[1]);
+
+    if(entries.length === 0){
+
+        container.innerHTML =
+            '<p class="projects-status">No language data yet.</p>';
+        return;
+    }
+
+    const total = entries.reduce((sum, [, value]) => sum + value, 0);
+
+    container.innerHTML = entries.map(([language, value])=>{
+
+        const percent = Math.max(1, Math.round((value / total) * 100));
+        const color = LANG_COLORS[language] || "#00BCD4";
+
+        return `
+        <div class="skill">
+            <div class="skill-title">
+                <span>${escapeHTML(language)}</span>
+                <span>${percent}%</span>
+            </div>
+            <div class="progress">
+                <div class="progress-bar" style="width:${percent}%;background:${color}"></div>
+            </div>
+        </div>`;
+
+    }).join("");
+
+}
+
+async function loadLanguageStats(repos){
+
+    const container = document.getElementById("languageStats");
+
+    if(!container || repos.length === 0) return;
+
+    try{
+
+        const responses = await Promise.all(
+            repos.slice(0, 10).map(repo =>
+                fetch(repo.languages_url).then(res => {
+
+                    if(!res.ok) throw new Error("languages fetch failed");
+
+                    return res.json();
+
+                })
+            )
+        );
+
+        const totals = {};
+
+        responses.forEach(languages => {
+
+            Object.entries(languages).forEach(([language, bytes]) => {
+
+                totals[language] = (totals[language] || 0) + bytes;
+
+            });
+
+        });
+
+        renderLanguageStats(container, totals);
+
+    }catch(error){
+
+        console.error("Language stats fallback:", error);
+
+        const totals = {};
+
+        repos.forEach(repo => {
+
+            if(repo.language) totals[repo.language] = (totals[repo.language] || 0) + 1;
+
+        });
+
+        renderLanguageStats(container, totals);
+
+    }
+
+}
+
+async function loadGitHubProjects(){
+
+    try{
+
+        const response = await fetch(
+            `https://api.github.com/users/${GITHUB_USER}/repos?per_page=100&sort=updated`
+        );
+
+        if(!response.ok){
+
+            throw new Error("GitHub API returned " + response.status);
+        }
+
+        const repos = (await response.json())
+            .filter(repo => !repo.fork)
+            .sort((a, b) => new Date(b.pushed_at) - new Date(a.pushed_at));
+
+        if(repos.length === 0){
+
+            projectsGrid.innerHTML =
+                '<p class="projects-status">No public repositories found.</p';
+
+            document.getElementById("languageStats").innerHTML =
+                '<p class="projects-status">No language data yet.</p>';
+            return;
+        }
+
+        projectsGrid.innerHTML = repos.map(projectCardHTML).join("");
+
+        buildFilterButtons(repos);
+        bindButtonAnimations();
+        revealOnScroll();
+        loadLanguageStats(repos);
+
+    }catch(error){
+
+        console.error("Failed to load GitHub projects:", error);
+
+        projectsGrid.innerHTML =
+            '<p class="projects-status">Could not load projects from GitHub. ' +
+            '<a href="https://github.com/' + GITHUB_USER + '" target="_blank" ' +
+            'rel="noopener noreferrer">View repositories on GitHub</a>.</p>';
+
+        document.getElementById("languageStats").innerHTML =
+            '<p class="projects-status">Language stats unavailable right now.</p>';
+
+    }
+
+}
+
+loadGitHubProjects();
 
 /* ==========================
 CONTACT FORM
